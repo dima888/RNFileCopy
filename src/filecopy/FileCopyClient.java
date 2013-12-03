@@ -33,7 +33,10 @@ public class FileCopyClient extends Thread {
 	// current default timeout in nanoseconds
 	private long timeoutValue = 100000000L;
 
-	// ... ToDo
+	//Sequenznummmer des zu letzt verschickten Paketes --> 1 da 0 für die initialisierung festgelegt ist
+	private long nextSeqNum = 1;
+	//Sequenznummer des ältesten Paketes, für welches noch kein ACK vorliegt --> 1 da 0 für die initialisierung festgelegt ist
+	private long sendBase = 1;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -48,8 +51,12 @@ public class FileCopyClient extends Thread {
 
 	
 	public void runFileCopyClient() {
-		// ToDo!!
+		//RN Folie 3 Seite 40 - Selective Repeat
+		//Erstes Paket verschicken --> Sonderfall
+		FCpacket firstPacket = makeControlPacket();
+		new SendPacket(firstPacket);
 		
+		//Datei einlesen als Byte[]
 	}
 
 	/**
@@ -76,7 +83,7 @@ public class FileCopyClient extends Thread {
 	 * Implementation specific task performed at timeout
 	 */
 	public void timeoutTask(long seqNum) {
-		// ToDo
+		// ToDo: RN Folie 3 Seite 55 - Round Trip Time und Timeout
 	}
 
 	/**
