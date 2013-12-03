@@ -48,11 +48,11 @@ public class FileCopyClient extends Thread {
 	//Sende Puffer
 	private List<FCpacket> sendePuffer = new ArrayList<>();
 	
+	//Anzahl freier pufferplätze
+	private Semaphore freiePlaetze; 
+	
 	//Path Objekt zur Datei
 	private Path p;
-	
-	//Datei speichern, die unter dem Pfad liegt
-	private File f;
 	
 	//Einen Scanner auf der Datei initialisieren
 	private Scanner s;
@@ -65,47 +65,38 @@ public class FileCopyClient extends Thread {
 		destPath = destPathArg;
 		windowSize = Integer.parseInt(windowSizeArg);
 		serverErrorRate = Long.parseLong(errorRateArg);
-
+		
+		p = Paths.get(sourcePath);
+		
+		try {
+			s = new Scanner(p);
+		} catch (Exception e) {
+			System.err.println("Datei: " + p.getFileName() + " unter dem Pfad: " + p + " nicht gefunden!");
+		}
+		freiePlaetze = new Semaphore(windowSize);
 	}
 	
 	//*************************************SELBST IMPLEMENTIERT*********************************************
 	public void runFileCopyClient() {
-		//RN Folie 3 Seite 40 - Selective Repeat
-		//Erstes Paket verschicken --> Sonderfall
-		FCpacket firstPacket = makeControlPacket();
-		new SendPacket(firstPacket, SERVER_PORT);
-		
-		try {
-			//Path Objekt erzeugen zum String Path
-			p = Paths.get(sourcePath);
-			
-			//Datei Obejkt erzeugen zum Path
-			f = p.toFile();
-			
-			//Scanner initialisieren
-			s = new Scanner(f);
-		} catch (FileNotFoundException e) {
-			System.err.println("Datei: " + f.toString() + " unter dem Pfad: " + p + " nicht gefunden!");
+		sendFirstPacket();
+		//durch das Semaphor wird das Windo repräsentiert
+		//z.B. windowsize = 3, so können nur 3 pakete los geschickt werden und falls ein Thread versucht ein 4 los
+		//zu schicken, so wird er in die Wait-Queue gesteckt und muss warten, bis ein Platz im Puffer frei wird
+		while (s.hasNext()) {
+//			System.out.println(s.next());
+//			byte[] sendData = new byte[UDP_PACKET_SIZE];
+//
+//			// Bytes aus der Datei auslesen, bis Maxanzahl erreicht ist
+//			for (int i = 0; i < UDP_PACKET_SIZE && s.hasNextByte(); i++) {
+//				sendData[i] = s.nextByte();
+//			}
+//			
+//			//Paket zum Puffer hinzufügen
+//			addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
+//			
+//			//Nach erfolgreichem hinzufügen, nextSeqNum erhöhen für das nächste Paket
+//			nextSeqNum++;
 		}
-		
-		//Konsolenausgaben zur prüfung
-		System.out.println("Größe der Datei: " + f.length() + " UDP_PACKET_SIZE: " + UDP_PACKET_SIZE);
-		
-		while (s.hasNextByte()) {
-			// maximale größe eines Packets
-			byte[] sendData = new byte[UDP_PACKET_SIZE];
-
-			// Bytes aus der Datei auslesen, bis Maxanzahl erreicht ist
-			for (int i = 0; i < UDP_PACKET_SIZE && s.hasNextByte(); i++) {
-				sendData[i] = s.nextByte();
-			}
-			
-			
-
-			//Neues SendPacket Objekt erstellen und ein FCpacket Objekt übergeben, sowie SERVER_PORT
-			new SendPacket(new FCpacket(nextSeqNum, sendData, sendData.length), SERVER_PORT);
-		}
-		
 	}
 	
 	/**
@@ -123,6 +114,48 @@ public class FileCopyClient extends Thread {
 
 		// ToDo
 	}	
+	
+	//Synchronized, da nur ein Thread zurzeit Zugriff auf den Sendepuffer haben soll
+	public synchronized void addPacket(FCpacket packet) {
+		// Erkaubnis erhalten etwas in den Puffer zu legen --> Puffer noch freie Plätze?
+		try {
+			freiePlaetze.acquire();
+		} catch (InterruptedException e1) {
+
+		}
+		//Paket dem Sendepuffer hinzufügen
+		sendePuffer.add(packet);
+		
+		//Paket losschicken
+		new SendPacket(servername, SERVER_PORT, packet).start();
+		
+		//Auf Antwort ACK warten
+		new ReceiveAcknowledgement().start();
+	}
+	
+	/**
+	 * Holt die Acked packete aus dem Sendepuffer
+	 * @param long seqNum - erwartet die seqNum des raus zu holenden paketes
+	 * synchronized, da nur 1 Thread zurzeit Zugriff auf den Sendepuffer haben soll
+	 */
+	public synchronized void acknowledgedPacket(long seqNum) {
+		
+		
+		//Platz im Sendepuffer wieder freigeben für neue Pakete
+		freiePlaetze.release();
+	}
+	
+	/**
+	 * Versendet das erste "spezielle" Pakete
+	 */
+	private void sendFirstPacket() {	
+		//RN Folie 3 Seite 40 - Selective Repeat
+		//Erstes Paket verschicken --> Sonderfall
+		FCpacket firstPacket = makeControlPacket();
+		firstPacket.setTimestamp(System.nanoTime());
+		
+		addPacket(firstPacket);
+	}
 	//*********************************************************************************************************
 
 	/**
