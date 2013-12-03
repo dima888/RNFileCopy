@@ -1,24 +1,27 @@
 package filecopy;
 
 import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 
 public class SendPacket extends Thread {
 	
 	//**************************** ATTRIBUTE **********************************
-	public final int SERVER_PORT = 50_001;
+	public final int SERVER_PORT;
 	public static final int BUFFER_SIZE = 1024;
 	private DatagramSocket clientSocket; // UDP-Socketklasse
 	private InetAddress serverIpAddress; // IP-Adresse des Zielservers
 	
     //*************************** KONSTRUKTOR *********************************
-	public SendPacket(FCpacket packet) {
+	public SendPacket(FCpacket packet, final int SERVER_PORT) {
+		this.SERVER_PORT = SERVER_PORT;
 //        clientSocket = new DatagramSocket();
 //        //IP wird ermitteln durch den Hostnamen
 //        serverIpAddress = InetAddress.getByName(hostname);
 //        writeToServer(userName + ": " + message);
 //        clientSocket.close();
+		// UTF-8 Konvertierter String als byte[] --> sendString.getBytes("UTF-8");
 	}
 	
     //************************** PUBLIC METHODEN ******************************

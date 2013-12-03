@@ -8,6 +8,12 @@ package filecopy;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+import java.util.concurrent.Semaphore;
 
 public class FileCopyClient extends Thread {
 
@@ -35,8 +41,21 @@ public class FileCopyClient extends Thread {
 
 	//Sequenznummmer des zu letzt verschickten Paketes --> 1 da 0 für die initialisierung festgelegt ist
 	private long nextSeqNum = 1;
+	
 	//Sequenznummer des ältesten Paketes, für welches noch kein ACK vorliegt --> 1 da 0 für die initialisierung festgelegt ist
 	private long sendBase = 1;
+	
+	//Sende Puffer
+	private List<FCpacket> sendePuffer = new ArrayList<>();
+	
+	//Path Objekt zur Datei
+	private Path p;
+	
+	//Datei speichern, die unter dem Pfad liegt
+	private File f;
+	
+	//Einen Scanner auf der Datei initialisieren
+	private Scanner s;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -48,16 +67,63 @@ public class FileCopyClient extends Thread {
 		serverErrorRate = Long.parseLong(errorRateArg);
 
 	}
-
 	
+	//*************************************SELBST IMPLEMENTIERT*********************************************
 	public void runFileCopyClient() {
 		//RN Folie 3 Seite 40 - Selective Repeat
 		//Erstes Paket verschicken --> Sonderfall
 		FCpacket firstPacket = makeControlPacket();
-		new SendPacket(firstPacket);
+		new SendPacket(firstPacket, SERVER_PORT);
 		
-		//Datei einlesen als Byte[]
+		try {
+			//Path Objekt erzeugen zum String Path
+			p = Paths.get(sourcePath);
+			
+			//Datei Obejkt erzeugen zum Path
+			f = p.toFile();
+			
+			//Scanner initialisieren
+			s = new Scanner(f);
+		} catch (FileNotFoundException e) {
+			System.err.println("Datei: " + f.toString() + " unter dem Pfad: " + p + " nicht gefunden!");
+		}
+		
+		//Konsolenausgaben zur prüfung
+		System.out.println("Größe der Datei: " + f.length() + " UDP_PACKET_SIZE: " + UDP_PACKET_SIZE);
+		
+		while (s.hasNextByte()) {
+			// maximale größe eines Packets
+			byte[] sendData = new byte[UDP_PACKET_SIZE];
+
+			// Bytes aus der Datei auslesen, bis Maxanzahl erreicht ist
+			for (int i = 0; i < UDP_PACKET_SIZE && s.hasNextByte(); i++) {
+				sendData[i] = s.nextByte();
+			}
+			
+			
+
+			//Neues SendPacket Objekt erstellen und ein FCpacket Objekt übergeben, sowie SERVER_PORT
+			new SendPacket(new FCpacket(nextSeqNum, sendData, sendData.length), SERVER_PORT);
+		}
+		
 	}
+	
+	/**
+	 * Implementation specific task performed at timeout
+	 */
+	public void timeoutTask(long seqNum) {
+		// ToDo: RN Folie 3 Seite 55 - Round Trip Time und Timeout
+	}
+
+	/**
+	 * 
+	 * Computes the current timeout value (in nanoseconds)
+	 */
+	public void computeTimeoutValue(long sampleRTT) {
+
+		// ToDo
+	}	
+	//*********************************************************************************************************
 
 	/**
 	 * 
@@ -77,22 +143,6 @@ public class FileCopyClient extends Thread {
 		if (packet.getTimer() != null) {
 			packet.getTimer().interrupt();
 		}
-	}
-
-	/**
-	 * Implementation specific task performed at timeout
-	 */
-	public void timeoutTask(long seqNum) {
-		// ToDo: RN Folie 3 Seite 55 - Round Trip Time und Timeout
-	}
-
-	/**
-	 * 
-	 * Computes the current timeout value (in nanoseconds)
-	 */
-	public void computeTimeoutValue(long sampleRTT) {
-
-		// ToDo
 	}
 
 	/**

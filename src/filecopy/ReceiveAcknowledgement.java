@@ -27,7 +27,7 @@ public class ReceiveAcknowledgement extends Thread {
      * @return String - Antwort des Servers
      * @throws IOException 
      */
-    private String readFromClient() throws IOException {
+    private void readFromClient() throws IOException {
 //        /* Liefere den nächsten String vom Server */
 //        String receiveString = "";
 //        
