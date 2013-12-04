@@ -14,8 +14,11 @@ public class ReceiveAcknowledgement extends Thread {
     private InetAddress receivedIPAddress; // IP-Adresse des Clients
     private int receivedPort; // Port auf dem Client
     
+    private FCpacket packet;
     //*************************** KONSTRUKTOR *********************************
-    
+    public ReceiveAcknowledgement(FCpacket packet) {
+    	this.packet = packet;
+    }
     
     //************************** PUBLIC METHODEN ******************************
     @Override
@@ -30,7 +33,7 @@ public class ReceiveAcknowledgement extends Thread {
             while (!isInterrupted()) {
                 //Auf Nachrichten (lauschen)
                 String message = readFromClient();
-
+                
             }
         } catch (SocketException ex) {
         	

@@ -23,6 +23,8 @@ public class FileCopyClient extends Thread {
 	public final int SERVER_PORT = 23000;
 
 	public final int UDP_PACKET_SIZE = 1008;
+	
+	public final int DATA_SIZE = UDP_PACKET_SIZE - 8;
 
 	// -------- Public parms
 	public String servername;
@@ -93,17 +95,28 @@ public class FileCopyClient extends Thread {
 //			
 //			//Paket zum Puffer hinzufügen
 //			addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
-//			
-//			//Nach erfolgreichem hinzufügen, nextSeqNum erhöhen für das nächste Paket
-//			nextSeqNum++;
 		}
 	}
 	
 	/**
 	 * Implementation specific task performed at timeout
 	 */
-	public void timeoutTask(long seqNum) {
+	public synchronized void timeoutTask(long seqNum) {
 		// ToDo: RN Folie 3 Seite 55 - Round Trip Time und Timeout
+		
+		//Das Paket suchen, für welches ein Timeout gekommen ist
+		for(FCpacket packet : sendePuffer) {
+			if(packet.getSeqNum() == seqNum) {
+				//Paket gefunden
+				//Senden des Paketes wiederholen
+				new SendPacket(servername, SERVER_PORT, packet).start();
+				
+				//Timmer für Paket neu starten
+				FC_Timer timer = new FC_Timer(timeoutValue, this, seqNum);
+				packet.setTimer(timer);
+				timer.start();
+			}
+		}
 	}
 
 	/**
@@ -111,7 +124,6 @@ public class FileCopyClient extends Thread {
 	 * Computes the current timeout value (in nanoseconds)
 	 */
 	public void computeTimeoutValue(long sampleRTT) {
-
 		// ToDo
 	}	
 	
@@ -123,14 +135,23 @@ public class FileCopyClient extends Thread {
 		} catch (InterruptedException e1) {
 
 		}
+		
 		//Paket dem Sendepuffer hinzufügen
 		sendePuffer.add(packet);
 		
 		//Paket losschicken
 		new SendPacket(servername, SERVER_PORT, packet).start();
 		
+		//Timer für das Paket starten
+		FC_Timer timer = new FC_Timer(timeoutValue, this, nextSeqNum);
+		packet.setTimer(timer);
+		timer.start();
+
+		//nextSeqNum erhöhen
+		nextSeqNum++;
+		
 		//Auf Antwort ACK warten
-		new ReceiveAcknowledgement().start();
+		new ReceiveAcknowledgement(packet).start();
 	}
 	
 	/**
