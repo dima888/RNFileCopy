@@ -103,7 +103,7 @@ public class FileCopyServer {
             if (seqNum == 0) {
               if (setParameters(fcReceivePacket)) {         	
                 // open destination file 
-                outToFile = new FileOutputStream(destPath); 
+                outToFile = new FileOutputStream(destPath);
                 System.out.println("SEQNUM:" + fcReceivePacket.getSeqNum() + " DATA:" + new String(fcReceivePacket.getData()));
               } else {
                 // Wrong parameter packet --> End!
@@ -127,7 +127,7 @@ public class FileCopyServer {
         }
       } catch (java.net.SocketTimeoutException e) {
         // Copy job successfully finished
-    	  System.out.println("OUTTOFILE: " + outToFile);
+    	System.out.println("OUTTOFILE: " + outToFile);
         outToFile.close();
         connectionEstablished = false;
         System.out.println("Connection successfully closed, " +

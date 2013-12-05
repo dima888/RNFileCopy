@@ -48,6 +48,9 @@ public class SendPacket extends Thread {
 
 			//Paket abschicken
 			clientSocket.send(sendPacket);
+			
+			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
+			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSEMDET");
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {
