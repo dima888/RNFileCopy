@@ -80,10 +80,6 @@ public class FileCopyClient extends Thread {
 	
 	//*************************************SELBST IMPLEMENTIERT*********************************************
 	public void runFileCopyClient() {
-		//Auf Antwort ACK warten
-		System.out.println("SERVER FÜR ACKNOLEDGEMENTS GESTARTET");
-		new ReceiveAcknowledgement(this).start();
-		
 		System.out.println("ERSTES SPEZIAL PAKET WIRD VERSCHICKT\n");
 		sendFirstPacket();
 		
@@ -143,7 +139,7 @@ public class FileCopyClient extends Thread {
 		
 		//Paket losschicken
 		System.out.println("THREAD ZUM PAKET VERSCHICKEN GESTARTET");
-		new SendPacket(servername, SERVER_PORT, packet).start();
+		new SendPacket(this, servername, SERVER_PORT, packet).start();
 		
 		//Timer für das Paket starten
 		FC_Timer timer = new FC_Timer(timeoutValue, this, nextSeqNum);

@@ -73,6 +73,7 @@ public class FileCopyServer {
           // Establish new connection
           clientAdress = receivedIPAddress;
           clientPort = receivedPort;
+          System.out.println("ERHALTENER PORT: " + receivedPort);
           serverSocket.setSoTimeout(CONNECTION_TIMEOUT);
           connectionEstablished = true;
           rcvbase = 0;

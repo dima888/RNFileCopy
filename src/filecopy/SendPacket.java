@@ -14,14 +14,16 @@ import java.util.Arrays;
 public class SendPacket extends Thread {
 	
 	//**************************** ATTRIBUTE **********************************
-	private final String SERVER_NAME;
-	private final int SERVER_PORT;
-	private DatagramSocket clientSocket; // UDP-Socketklasse
-	private InetAddress serverIpAddress; // IP-Adresse des Zielservers
+	private final String SERVER_NAME; //IP
+	private final int SERVER_PORT; //PORT
+	private DatagramSocket clientSocket; //UDP-Socketklasse
+	
+	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
 	
     //*************************** KONSTRUKTOR *********************************
-	public SendPacket(final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
+	public SendPacket(FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
+		this.fileCopyClient = fileCopyClient;
 		this.SERVER_NAME = SERVER_NAME;
 		this.SERVER_PORT = SERVER_PORT;
 		this.packet = packet;
@@ -46,11 +48,18 @@ public class SendPacket extends Thread {
 			DatagramPacket sendPacket = new DatagramPacket(data, data.length, 
 					InetAddress.getByName(SERVER_NAME), SERVER_PORT);
 
-			//Paket abschicken
-			clientSocket.send(sendPacket);
-			
-			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
-			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSEMDET");
+			while(true) {
+				//Paket abschicken
+				clientSocket.send(sendPacket);
+			}
+//			//Paket abschicken
+//			clientSocket.send(sendPacket);
+//			
+//			//Auf Antwort ACK warten
+//			new ReceiveAcknowledgement(fileCopyClient, clientSocket).start();
+//			
+//			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
+//			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSEMDET");
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {

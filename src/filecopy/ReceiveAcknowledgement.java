@@ -6,32 +6,35 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 
+/**
+ * Diese Klasse ist dazu da, die Acknowledgements vom Server zu erhalten
+ * und die 
+ */
 public class ReceiveAcknowledgement extends Thread {
     //**************************** ATTRIBUTE **********************************
-    private final int SERVER_PORT = 23_000;
-	private final int UDP_PACKET_SIZE = 8;
-    private DatagramSocket serverSocket; // UDP-Socketklasse
-    
+	private final int UDP_PACKET_SIZE = 8;    
     private FileCopyClient fileCopyClient;
+    private DatagramSocket clientSocket;
     
     //*************************** KONSTRUKTOR *********************************
-    public ReceiveAcknowledgement(FileCopyClient fileCopyClient) {
+    public ReceiveAcknowledgement(FileCopyClient fileCopyClient, DatagramSocket clientSocket) {
     	this.fileCopyClient = fileCopyClient;
+    	this.clientSocket = clientSocket;
     }
    
     //************************** PUBLIC METHODEN ******************************
     @Override
     public void run() {
         try {
-            /* UDP-Socket erzeugen (KEIN VERBINDUNGSAUFBAU!)
-             * Socket wird an den ServerPort gebunden */
-        	//TODO: keine bessere Lösung gefunden
-            //serverSocket = new DatagramSocket(SERVER_PORT, InetAddress.getByName("localhost"));
-        	serverSocket = new DatagramSocket(SERVER_PORT);
-        	
             while (!isInterrupted()) {
+            	System.out.println("WARTE AUF ACK");
             	//Auf Empfang eines Paketes warten
                 DatagramPacket receivedPacket = receivePacket();
+                
+                //Falls Server die Verbindung schließt
+                if(receivedPacket == null) {
+                	return;
+                }
                 
                 //Sequenznummer aus erhaltenem Paket filtern
                 long receivedSeqNum = getSeqNumFromDatagramPacket(receivedPacket);
@@ -76,8 +79,13 @@ public class ReceiveAcknowledgement extends Thread {
         byte[] receiveData = new byte[UDP_PACKET_SIZE];
         DatagramPacket receivePacket = new DatagramPacket(receiveData, UDP_PACKET_SIZE);
 
+        if(! clientSocket.isConnected()) {
+        	System.out.println("DER SERVER HAT DIE VERBINDUNG GESCHLOSSEN!");
+        	return null;
+        }
+        
         /* Warte auf Empfang eines Pakets auf dem eigenen Server-Port */
-        serverSocket.receive(receivePacket);
+        clientSocket.receive(receivePacket);
         
         return receivePacket;
     }
