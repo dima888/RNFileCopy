@@ -17,12 +17,13 @@ public class SendPacket extends Thread {
 	private final String SERVER_NAME; //IP
 	private final int SERVER_PORT; //PORT
 	private DatagramSocket clientSocket; //UDP-Socketklasse
-	
 	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
+	private int delayTimeInMilliSeconds = 1000;
 	
     //*************************** KONSTRUKTOR *********************************
-	public SendPacket(FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
+	public SendPacket(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
+		this.clientSocket = clientSocket;
 		this.fileCopyClient = fileCopyClient;
 		this.SERVER_NAME = SERVER_NAME;
 		this.SERVER_PORT = SERVER_PORT;
@@ -34,10 +35,7 @@ public class SendPacket extends Thread {
 	public void run() {
 		try {
 			//1ms Verzögerungszeit simulieren
-			this.sleep(1000);
-			
-			//UDP Socket
-			clientSocket = new DatagramSocket();
+			this.sleep(delayTimeInMilliSeconds);
 
 			//PAKET erstellen --> erste 8Byte für SeNum und restliche 1000 für DATA
 			String sendString = new String(packet.getSeqNumBytes()) + new String(packet.getData());
@@ -45,21 +43,14 @@ public class SendPacket extends Thread {
 			byte[] data = sendString.getBytes("UTF-8");
 			
 			//Paket erstellen
-			DatagramPacket sendPacket = new DatagramPacket(data, data.length, 
+			DatagramPacket sendPacket = new DatagramPacket(data, data.length,
 					InetAddress.getByName(SERVER_NAME), SERVER_PORT);
-
-			while(true) {
-				//Paket abschicken
-				clientSocket.send(sendPacket);
-			}
-//			//Paket abschicken
-//			clientSocket.send(sendPacket);
-//			
-//			//Auf Antwort ACK warten
-//			new ReceiveAcknowledgement(fileCopyClient, clientSocket).start();
-//			
-//			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
-//			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSEMDET");
+			
+			//Paket abschicken
+			clientSocket.send(sendPacket);
+			
+			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
+			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSENDET");
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {

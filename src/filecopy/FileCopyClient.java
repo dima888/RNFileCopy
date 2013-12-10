@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.Semaphore;
 
+import com.sun.swing.internal.plaf.synth.resources.synth;
+
 public class FileCopyClient extends Thread {
 
 	// -------- Constants
@@ -47,11 +49,16 @@ public class FileCopyClient extends Thread {
 	//Sequenznummer des ältesten Paketes, für welches noch kein ACK vorliegt --> 1 da 0 für die initialisierung festgelegt ist
 	private long sendBase = 1;
 	
+	private DatagramSocket clientSocket;
+	
 	//Sende Puffer
 	private List<FCpacket> sendBuffer = new ArrayList<>();
 	
 	//Anzahl freier pufferplätze
 	private Semaphore freiePlaetze; 
+	
+	//Nur ein Thread zurzeit darf auf den sendepuffer zugreifen
+	private Semaphore mutex = new Semaphore(1);
 	
 	//Path Objekt zur Datei
 	private Path p;
@@ -80,33 +87,39 @@ public class FileCopyClient extends Thread {
 	
 	//*************************************SELBST IMPLEMENTIERT*********************************************
 	public void runFileCopyClient() {
-		System.out.println("ERSTES SPEZIAL PAKET WIRD VERSCHICKT\n");
-		sendFirstPacket();
-		
-		//durch das Semaphor wird das Windo repräsentiert
-		//z.B. windowsize = 3, so können nur 3 pakete los geschickt werden und falls ein Thread versucht ein 4 los
-		//zu schicken, so wird er in die Wait-Queue gesteckt und muss warten, bis ein Platz im Puffer frei wird
-		while (s.hasNext()) {
-			byte[] sendData = new byte[UDP_PACKET_SIZE];
+		try {
+			clientSocket = new DatagramSocket();
+			
+			System.out.println("ERSTES SPEZIAL PAKET WIRD VERSCHICKT\n");
+			sendFirstPacket();
+			
+			//durch das Semaphor wird das Windo repräsentiert
+			//z.B. windowsize = 3, so können nur 3 pakete los geschickt werden und falls ein Thread versucht ein 4 los
+			//zu schicken, so wird er in die Wait-Queue gesteckt und muss warten, bis ein Platz im Puffer frei wird
+			while (s.hasNext()) {
+				byte[] sendData = new byte[UDP_PACKET_SIZE];
 
-			// Bytes aus der Datei auslesen, bis Maxanzahl erreicht ist
-			for (int i = 0; i < UDP_PACKET_SIZE && s.hasNextByte(); i++) {
-				sendData[i] = s.nextByte();
+				// Bytes aus der Datei auslesen, bis Maxanzahl erreicht ist
+				for (int i = 0; i < UDP_PACKET_SIZE && s.hasNextByte(); i++) {
+					sendData[i] = s.nextByte();
+				}
+				
+				System.out.println("PAKET MIT SEQNUM: " + nextSeqNum + " SOLL HINZUGEFÜGT WERDEN");
+				
+				//Paket zum Puffer hinzufügen
+				addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
+				
+				System.out.println("PAKET HINZUGEFÜGT UND VERSCHICKT\n");
 			}
-			
-			System.out.println("PAKET MIT SEQNUM: " + nextSeqNum + " SOLL HINZUGEFÜGT WERDEN");
-			
-			//Paket zum Puffer hinzufügen
-			addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
-			
-			System.out.println("PAKET HINZUGEFÜGT UND VERSCHICKT\n");
+		} catch (SocketException e) {
+			e.printStackTrace();
 		}
 	}
 	
 	/**
 	 * Implementation specific task performed at timeout
 	 */
-	public synchronized  void timeoutTask(long seqNum) {
+	public  void timeoutTask(long seqNum) {
 		// ToDo: RN Folie 3 Seite 55 - Round Trip Time und Timeout
 		
 		System.out.println("PACKET MIT SEQNUM: " + seqNum + " TIMED OUT");
@@ -121,8 +134,11 @@ public class FileCopyClient extends Thread {
 		// ToDo
 	}	
 	
-	//Synchronized, da nur ein Thread zurzeit Zugriff auf den Sendepuffer haben soll
-	public synchronized void addPacket(FCpacket packet) {
+	/**
+	 * Diese Methode fügt dem Sendepuffer ein Paket hinzu
+	 * @param FCpacket packet - erwartet ein Paket, welches verschickt werden soll
+	 */
+	public void addPacket(FCpacket packet) {
 		System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
 				+ " VERSUCHT IN SEMAPHOR EINZUTRETEN THREADNAME: " + Thread.currentThread().getName());
 		// Erkaubnis erhalten etwas in den Puffer zu legen --> Puffer noch freie Plätze?
@@ -131,15 +147,29 @@ public class FileCopyClient extends Thread {
 		} catch (InterruptedException e1) {
 
 		}
-		System.out.println("ADD PACKET FÜR SEQNUM: " + packet.getSeqNum() 
-		+ " SEMAPHOR BETRETEN DURCH " + Thread.currentThread().getName());
 		
+		//Mutex für Pufferzugriff
+		try {
+			mutex.acquire();
+		} catch(InterruptedException e) {
+
+		}
+		
+		//Nur Thread zurzeit darf auf den sendePuffer zugreifen
+		System.out.println("ADD PACKET FÜR SEQNUM: " + packet.getSeqNum() 
+				+ " SEMAPHOR BETRETEN DURCH " + Thread.currentThread().getName());
+				
 		//Paket dem Sendepuffer hinzufügen
 		sendBuffer.add(packet);
 		
+		mutex.release();
+
 		//Paket losschicken
 		System.out.println("THREAD ZUM PAKET VERSCHICKEN GESTARTET");
-		new SendPacket(this, servername, SERVER_PORT, packet).start();
+		new SendPacket(clientSocket, this, servername, SERVER_PORT, packet).start();
+		
+		//Auf Antwort ACK warten
+		new ReceiveAcknowledgement(clientSocket, this).start();
 		
 		//Timer für das Paket starten
 		FC_Timer timer = new FC_Timer(timeoutValue, this, nextSeqNum);
@@ -156,9 +186,16 @@ public class FileCopyClient extends Thread {
 	 * @param long seqNum - erwartet die seqNum des raus zu holenden paketes
 	 * synchronized, da nur 1 Thread zurzeit Zugriff auf den Sendepuffer haben soll
 	 */
-	public  void acknowledgedPacket(long seqNum) {
+	public void acknowledgedPacket(long seqNum) {
 		System.out.println("ACKNOWLEDGE PACKET BETRETEN VON: " + Thread.currentThread().getName());
 		FCpacket deletePacket = null;
+		
+		//puffer Zugriff synchronisieren
+		try{
+			mutex.acquire();
+		} catch(InterruptedException e) {
+			
+		}
 		
 		for(FCpacket packet : sendBuffer) {
 			//Paket mit übergebener seqNum lokalisieren
@@ -173,6 +210,8 @@ public class FileCopyClient extends Thread {
 		}
 		
 		sendBuffer.remove(deletePacket);
+		
+		mutex.release();
 		
 		//Window um einen Platz verschieben --> Platz im Puffer freigen
 		freiePlaetze.release();

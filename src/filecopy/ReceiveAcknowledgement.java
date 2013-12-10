@@ -17,9 +17,9 @@ public class ReceiveAcknowledgement extends Thread {
     private DatagramSocket clientSocket;
     
     //*************************** KONSTRUKTOR *********************************
-    public ReceiveAcknowledgement(FileCopyClient fileCopyClient, DatagramSocket clientSocket) {
-    	this.fileCopyClient = fileCopyClient;
+    public ReceiveAcknowledgement(DatagramSocket clientSocket, FileCopyClient fileCopyClient) {
     	this.clientSocket = clientSocket;
+    	this.fileCopyClient = fileCopyClient;
     }
    
     //************************** PUBLIC METHODEN ******************************
@@ -30,11 +30,6 @@ public class ReceiveAcknowledgement extends Thread {
             	System.out.println("WARTE AUF ACK");
             	//Auf Empfang eines Paketes warten
                 DatagramPacket receivedPacket = receivePacket();
-                
-                //Falls Server die Verbindung schließt
-                if(receivedPacket == null) {
-                	return;
-                }
                 
                 //Sequenznummer aus erhaltenem Paket filtern
                 long receivedSeqNum = getSeqNumFromDatagramPacket(receivedPacket);
@@ -78,11 +73,6 @@ public class ReceiveAcknowledgement extends Thread {
         /* Paket für den Empfang erzeugen */
         byte[] receiveData = new byte[UDP_PACKET_SIZE];
         DatagramPacket receivePacket = new DatagramPacket(receiveData, UDP_PACKET_SIZE);
-
-        if(! clientSocket.isConnected()) {
-        	System.out.println("DER SERVER HAT DIE VERBINDUNG GESCHLOSSEN!");
-        	return null;
-        }
         
         /* Warte auf Empfang eines Pakets auf dem eigenen Server-Port */
         clientSocket.receive(receivePacket);

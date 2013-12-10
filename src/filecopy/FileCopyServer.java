@@ -73,7 +73,6 @@ public class FileCopyServer {
           // Establish new connection
           clientAdress = receivedIPAddress;
           clientPort = receivedPort;
-          System.out.println("ERHALTENER PORT: " + receivedPort);
           serverSocket.setSoTimeout(CONNECTION_TIMEOUT);
           connectionEstablished = true;
           rcvbase = 0;
@@ -105,7 +104,6 @@ public class FileCopyServer {
               if (setParameters(fcReceivePacket)) {         	
                 // open destination file 
                 outToFile = new FileOutputStream(destPath);
-                System.out.println("SEQNUM:" + fcReceivePacket.getSeqNum() + " DATA:" + new String(fcReceivePacket.getData()));
               } else {
                 // Wrong parameter packet --> End!
                 break;
