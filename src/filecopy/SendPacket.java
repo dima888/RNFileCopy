@@ -19,7 +19,7 @@ public class SendPacket extends Thread {
 	private DatagramSocket clientSocket; //UDP-Socketklasse
 	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
-	private int delayTimeInMilliSeconds = 1000;
+	private int delayTimeInMilliSeconds = 10;
 	
     //*************************** KONSTRUKTOR *********************************
 	public SendPacket(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
