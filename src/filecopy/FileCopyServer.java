@@ -90,7 +90,7 @@ public class FileCopyServer {
  
           long seqNum = fcReceivePacket.getSeqNum();
           recPacketCounter++;
-
+          
           // Test on simulated error (packet checksum simulation)
           if ((recPacketCounter % errorRate) == 0) {
             testOut("---- Packet " + seqNum + " corrupted! ---------");

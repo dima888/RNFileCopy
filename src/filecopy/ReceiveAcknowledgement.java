@@ -16,18 +16,24 @@ public class ReceiveAcknowledgement extends Thread {
     private FileCopyClient fileCopyClient;
     private DatagramSocket clientSocket;
     
+    private boolean serviceRequested = true;
+    private int countReceivedAcks = 0;
+    private final int EXPECTED_PACKETS;
+    
     //*************************** KONSTRUKTOR *********************************
-    public ReceiveAcknowledgement(DatagramSocket clientSocket, FileCopyClient fileCopyClient) {
+    public ReceiveAcknowledgement(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final int EXPECTED_PACKETS) {
     	this.clientSocket = clientSocket;
     	this.fileCopyClient = fileCopyClient;
+    	this.EXPECTED_PACKETS = EXPECTED_PACKETS;
     }
    
     //************************** PUBLIC METHODEN ******************************
     @Override
     public void run() {
         try {
-            while (!isInterrupted()) {
+            while (serviceRequested) {
             	System.out.println("WARTE AUF ACK");
+            	
             	//Auf Empfang eines Paketes warten
                 DatagramPacket receivedPacket = receivePacket();
                 
@@ -44,6 +50,10 @@ public class ReceiveAcknowledgement extends Thread {
         } catch (IOException ex) {
         	ex.printStackTrace();
         }
+    }
+    
+    public void setServiceRequestedFalse() {
+    	this.serviceRequested = false;
     }
     
     //*********************** PRIVATE METHODEN ********************************

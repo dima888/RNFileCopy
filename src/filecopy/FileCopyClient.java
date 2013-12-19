@@ -17,6 +17,13 @@ import java.util.concurrent.Semaphore;
 
 import com.sun.swing.internal.plaf.synth.resources.synth;
 
+/*
+ * TODO Fehler quelle liegt irgendwo beim versenden
+ * Der Client schmiert jedes mal ab, wenn Paket mit SeqNum 129 verschickt wird...beim
+ * Server kommt aus irgendwelchen GRÜNDEN die SeqNum 63...Bei einer Paketanzahl kleiner
+ * 129 kann man Problemlos eine TXT Datei übertragen
+ */
+
 public class FileCopyClient extends Thread {
 
 	// -------- Constants
@@ -68,6 +75,10 @@ public class FileCopyClient extends Thread {
 	
 	//Misst die Anzahl der Timeouts für Pakete
 	private int timeOutCount = 0;
+	
+	private final int FILE_SIZE;
+	
+	private ReceiveAcknowledgement receiver;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -79,6 +90,8 @@ public class FileCopyClient extends Thread {
 		serverErrorRate = Long.parseLong(errorRateArg);
 		
 		p = Paths.get(sourcePath);
+		
+		FILE_SIZE = (int) p.toFile().length();
 		
 		try {
 			fileInputStream = new FileInputStream(p.toFile());
@@ -95,44 +108,89 @@ public class FileCopyClient extends Thread {
 			clientSocket = new DatagramSocket();
 			
 			//Thread zum lauschen auf Server antworten (Acks) starten
-			new ReceiveAcknowledgement(clientSocket, this).start();
+			receiver = new ReceiveAcknowledgement(clientSocket, this, FILE_SIZE);
+			receiver.start();
 			
-			//Erstes spezial Paket verschicken
-			sendFirstPacket();
 			
-			//TODO: RESTLICHE BYTES AUSLESEN
-			while(fileInputStream.available() > UDP_PACKET_SIZE) {
-				byte[] sendData = new byte[UDP_PACKET_SIZE];
+			//Flag für das erste Paket
+			boolean firstPacketSend = true;
+			
+			while(fileInputStream.available() > DATA_SIZE) {
 				
-				try {
-					fileInputStream.read(sendData);
+				//Erstes Paket besonders behandeln
+				if(firstPacketSend) {
+					firstPacketSend = false;
 					
-					//Paket zum Puffer hinzufügen
-					addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
-				} catch (IOException e) {
-					e.printStackTrace();
+					//Erstes Paket verschicken --> Sonderfall
+					FCpacket firstPacket = makeControlPacket();
+					
+					addPacket(firstPacket);
+				} else {
+					byte[] sendData = new byte[DATA_SIZE];
+					
+					try {
+						fileInputStream.read(sendData);
+					
+						//Paket zum Puffer hinzufügen
+						addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 				}
 			}
+			
+			//Berechnung der übrig gebliebenen Bytes der Datei
+			int rest = (FILE_SIZE % DATA_SIZE);
+			
+			//int rest = 337;
+			byte[] sendData = new byte[rest];
+			
+			fileInputStream.read(sendData);
+			
+			//Paket zum Puffer hinzufügen
+			addPacket(new FCpacket(nextSeqNum, sendData, sendData.length));
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		
+		//TODO HIER IST ES FALSCH PLAZIERT, DA SO NICHT ZWANGSLÄUFIG AUF DAS LETZTE ACK GEWARTET WIRD
+		//receiver.setServiceRequestedFalse();
+		
+		while(true) {
+			try {
+				Thread.currentThread().sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			System.out.println("*****************Anzahl an Timerabläufen: " + timeOutCount + "*************************");
+		}
+
 		//Geforderte Ergebnisausgaben
 		//1. Gesamt-Übertragungszeit für eine Datei
 		//2. Anzahl an Timerabläufen
 		//3. der gemessene Mittelwert für die RTT
-		System.out.println("Anzahl an Timerabläufen: " + timeOutCount);
+		//System.out.println("*****************Anzahl an Timerabläufen: " + timeOutCount + "*************************");
 	}
 	
 	/**
 	 * Implementation specific task performed at timeout
 	 * Synchronized, da nur ein Thread zurzeit zugriff auf sendepuffer haben soll
 	 */
-	public synchronized void timeoutTask(long seqNum) {
+	public void timeoutTask(long seqNum) {
+		//Mutex für Pufferzugriff
+		try {
+			mutex.acquire();
+		} catch(InterruptedException e) {
+
+		}
+		
 		//Counter für Timeouts inkrementieren
 		timeOutCount++;
+		
+		System.out.println("TTTTIIIIIIMMMMMMMMMEEEEEEEEEDDDDDDDDDD OOOOOOOOOUUUUUUUUUTTTTTTTTT SEQNUM: " + seqNum);
 		
 		for(FCpacket packet : sendBuffer) {
 			//Paket mit übergebener seqNum lokalisieren
@@ -141,11 +199,12 @@ public class FileCopyClient extends Thread {
 				new SendPacket(clientSocket, this, servername, SERVER_PORT, packet).start();
 				
 				//Timer für das Paket erneut starten
-				FC_Timer timer = new FC_Timer(timeoutValue, this, nextSeqNum);
+				FC_Timer timer = new FC_Timer(timeoutValue, this, packet.getSeqNum());
 				packet.setTimer(timer);
 				timer.start();
 			}
 		}
+		mutex.release();
 	}
 
 	/**
@@ -153,7 +212,24 @@ public class FileCopyClient extends Thread {
 	 * Computes the current timeout value (in nanoseconds)
 	 */
 	public void computeTimeoutValue(long sampleRTT) {
-		// ToDo
+//		//TODO
+//		long timeoutValue = 100000000L;
+//		long estimatedRTT = timeoutValue;
+//		long deviation = timeoutValue;
+//		long sampleRTTALL;
+//		int countRTT;
+//		
+////		sampleRTTALL += sampleRTT;
+////		countRTT++;
+//
+//		estimatedRTT = Double.valueOf(
+//				(1 - 0.1) * estimatedRTT + 0.1 * sampleRTT).longValue();
+//
+//		deviation = Double.valueOf(
+//				(1 - 0.1) * deviation + 0.1
+//						* Math.abs(sampleRTT - estimatedRTT)).longValue();
+//
+//		timeoutValue = estimatedRTT + 4 * deviation;
 	}	
 	
 	/**
@@ -183,8 +259,11 @@ public class FileCopyClient extends Thread {
 		//Paket losschicken
 		new SendPacket(clientSocket, this, servername, SERVER_PORT, packet).start();
 		
+		//Zeit festlegen --> Zeitstempel
+		//packet.setTimestamp(System.nanoTime());
+		
 		//Timer für das Paket starten
-		FC_Timer timer = new FC_Timer(timeoutValue, this, nextSeqNum);
+		FC_Timer timer = new FC_Timer(timeoutValue, this, packet.getSeqNum());
 		packet.setTimer(timer);
 		timer.start();
 
@@ -206,61 +285,71 @@ public class FileCopyClient extends Thread {
 			
 		}
 		
+		//Pufferspeicher für alle Acked Packets
 		List<FCpacket> ackedPackets = new ArrayList<>();
+		boolean isSendBase = false;
 		
 		for(FCpacket packet : sendBuffer) {
-			//Flag zum überprüfen, ob das acked paket die sendbase ist
-			boolean isSendBase = false;
-			
 			//Paket mit übergebener seqNum lokalisieren
 			if(packet.getSeqNum() == seqNum) {
 				//Markiere Paket als quittiert
 				packet.setValidACK(true);
 				
 				//Timer für Paket stoppen
-				packet.getTimer().interrupt();
+				packet.getTimer().interrupt();		
 				
-				//wenn n = sendbase, dann lösche ab n alle Pakete, bis ein noch nicht
-				//quittiertes Paket im sendepuffer erreicht ist und setzte sendbase
-				//auf dessen sequenznummer
-				if(seqNum == sendBase) {
-					isSendBase = true;
-				}				
-			}
-			
-			//Alle Pakete löschen bis ein noch nicht quittiertes kommt und dieses
-			//auf sendbase setzten
-			if(isSendBase) {
-				if(packet.isValidACK()) {
-					ackedPackets.add(packet);
-				} else {
-					//Falls ein packet gefunden wird, welches nicht quittiert ist
-					isSendBase = false;
-					//setzen auf sendbase
-					sendBase = packet.getSeqNum();
-				}
+				//Zu liste mit ack packets hinzufügen
+				ackedPackets.add(packet);
 			}
 		}
 		
-		//Alle quittierten Packete aus dem sendepuffer löschen
-		sendBuffer.removeAll(ackedPackets);
+		//Heraus finden ob wir schon ein Ack für die sendBase erhalten haben
+		for(FCpacket packet : ackedPackets) {
+			//Nach sendBase suchen
+			if(packet.getSeqNum() == sendBase) {
+				//Falls Seqnum mit sendBase übereinstimmt, flag auf true setzten
+				isSendBase = true;
+			}
+		}
+		
+		//Falls die Seqnum eines erhaltenen AckPackets übereinstimmt
+		if(isSendBase) {
+			//Pufferspeicher für das entfernen der Packete aus sendBuffer
+			List<FCpacket> removePackets = new ArrayList<>();
+			
+			for(FCpacket packet : sendBuffer) {
+				if(packet.isValidACK()) {
+					//Alles ab sendBase was Acked ist, in den puffer ablegen
+					removePackets.add(packet);
+				} else {
+					//TODO	WAS PASSIERT, WENN WINDOW SIZE = 1 IST	TODO
+					//TODO	AUF WAS WIRD SENDBASE DANN GESETZT ???	TODO
+					System.out.println("***************ALTE SENDBASE: " + sendBase + "**********************");
+					//Packetseqnum auf sendbase setzten
+					sendBase = packet.getSeqNum();
+					System.out.println("***************NEUE SENDBASE: " + sendBase + "**********************");
+					
+					//Durchlauf abbrechen, sobald ein Packet kommt, dass nicht Acked ist
+					break;
+				}
+			}
+			
+			//EIGENE LÖSUNG ABER IST DAS RICHTIG ???
+			if(windowSize == 1) {
+				sendBase++;
+			}
+			
+			//Acked pakete bis ein nicht acked Paket löschen und dies auf Sendbase setzten
+			sendBuffer.removeAll(removePackets);
+			
+			for(int i = 0; i < removePackets.size(); i++) {
+				//Window um einen Platz verschieben --> Platz im Puffer freigeben
+				//Soviele Plätze freigeben, wie Packete gelöscht wurden
+				freiePlaetze.release();
+			}
+		}
 		
 		mutex.release();
-		
-		//Window um einen Platz verschieben --> Platz im Puffer freigen
-		freiePlaetze.release();
-	}
-	
-	/**
-	 * Versendet das erste "spezielle" Pakete
-	 */
-	private void sendFirstPacket() {	
-		//RN Folie 3 Seite 40 - Selective Repeat
-		//Erstes Paket verschicken --> Sonderfall
-		FCpacket firstPacket = makeControlPacket();
-		firstPacket.setTimestamp(System.nanoTime());
-		
-		addPacket(firstPacket);
 	}
 	//*********************************************************************************************************
 
@@ -321,8 +410,11 @@ public class FileCopyClient extends Thread {
 		 * 
 		 * Einstellen der Parameter: Projekt --> Rechtsklick --> Run As --> Run Configurations --> (Tab) Arguments
 		 */
-		FileCopyClient myClient = new FileCopyClient(argv[0], argv[1], argv[2],
-				argv[3], argv[4]);
+//		FileCopyClient myClient = new FileCopyClient(argv[0], argv[1], argv[2],
+//				argv[3], argv[4]);
+		//FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData1.pdf", "1", "1000");
+		FileCopyClient myClient = new FileCopyClient("localhost", "Sem_BAI4.pdf", "Sem_BAI4AFJHOA.pdf", "10", "1000");
+		//FileCopyClient myClient = new FileCopyClient("localhost", "TestFile.txt", "TestFile1.txt", "1", "1000");
 		myClient.runFileCopyClient();
 	}
 

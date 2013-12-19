@@ -19,7 +19,7 @@ public class SendPacket extends Thread {
 	private DatagramSocket clientSocket; //UDP-Socketklasse
 	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
-	private int delayTimeInMilliSeconds = 10;
+	private int delayTimeInMilliSeconds = 1;
 	
     //*************************** KONSTRUKTOR *********************************
 	public SendPacket(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
@@ -40,7 +40,7 @@ public class SendPacket extends Thread {
 			//PAKET erstellen --> erste 8Byte für SeNum und restliche 1000 für DATA
 			String sendString = new String(packet.getSeqNumBytes()) + new String(packet.getData());
 			//String in ein Byte[] konvertieren UTF-8
-			byte[] data = sendString.getBytes("UTF-8");
+			byte[] data = sendString.getBytes();
 			
 			//Paket erstellen
 			DatagramPacket sendPacket = new DatagramPacket(data, data.length,
@@ -49,8 +49,11 @@ public class SendPacket extends Thread {
 			//Paket abschicken
 			clientSocket.send(sendPacket);
 			
-			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() 
+			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() + " UND PACKETGRÖßE: " + sendPacket.getLength()  
 			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSENDET");
+			if(packet.getSeqNum() == 128 || packet.getSeqNum() == 63) {
+				System.out.println(Arrays.toString(packet.getData()));
+			}
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {
