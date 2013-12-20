@@ -17,13 +17,6 @@ import java.util.concurrent.Semaphore;
 
 import com.sun.swing.internal.plaf.synth.resources.synth;
 
-/*
- * TODO Fehler quelle liegt irgendwo beim versenden
- * Der Client schmiert jedes mal ab, wenn Paket mit SeqNum 129 verschickt wird...beim
- * Server kommt aus irgendwelchen GRÜNDEN die SeqNum 63...Bei einer Paketanzahl kleiner
- * 129 kann man Problemlos eine TXT Datei übertragen
- */
-
 public class FileCopyClient extends Thread {
 
 	// -------- Constants
@@ -76,9 +69,14 @@ public class FileCopyClient extends Thread {
 	//Misst die Anzahl der Timeouts für Pakete
 	private int timeOutCount = 0;
 	
+	//Enthält die Dateigröße, welche kopiert werden soll
 	private final int FILE_SIZE;
 	
+	//Referenz auf ein Objekt der Klasse ReceiveAcknowlodgement
 	private ReceiveAcknowledgement receiver;
+	
+	//Soll die Gesamt-Übertragungszeit speichern
+	private long transferTime;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -104,6 +102,9 @@ public class FileCopyClient extends Thread {
 	//*************************************SELBST IMPLEMENTIERT*********************************************
 	public void runFileCopyClient() {
 		try {
+			System.out.println("Transfer gestartet, bitte einen Augenblick Geduld");
+			transferTime = System.currentTimeMillis();
+			
 			//socket Verbindung initialisieren
 			clientSocket = new DatagramSocket();
 			
@@ -156,23 +157,16 @@ public class FileCopyClient extends Thread {
 		}
 		
 		//TODO HIER IST ES FALSCH PLAZIERT, DA SO NICHT ZWANGSLÄUFIG AUF DAS LETZTE ACK GEWARTET WIRD
-		//receiver.setServiceRequestedFalse();
-		
-		while(true) {
-			try {
-				Thread.currentThread().sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			System.out.println("*****************Anzahl an Timerabläufen: " + timeOutCount + "*************************");
-		}
+		receiver.setServiceRequestedFalse();
+
 
 		//Geforderte Ergebnisausgaben
 		//1. Gesamt-Übertragungszeit für eine Datei
 		//2. Anzahl an Timerabläufen
 		//3. der gemessene Mittelwert für die RTT
-		//System.out.println("*****************Anzahl an Timerabläufen: " + timeOutCount + "*************************");
+		System.out.println("Gesamt-Übertragungszeit in Millisekunden: " + ((transferTime - System.currentTimeMillis()) * -1) );
+		//System.out.println("Gesamt-Übertragungszeit in Millisekunden: " + (((transferTime - System.currentTimeMillis()) * -1) / 1000) );
+		System.out.println("Anzahl an Timerabläufen: " + timeOutCount);
 	}
 	
 	/**
@@ -189,8 +183,6 @@ public class FileCopyClient extends Thread {
 		
 		//Counter für Timeouts inkrementieren
 		timeOutCount++;
-		
-		System.out.println("TTTTIIIIIIMMMMMMMMMEEEEEEEEEDDDDDDDDDD OOOOOOOOOUUUUUUUUUTTTTTTTTT SEQNUM: " + seqNum);
 		
 		for(FCpacket packet : sendBuffer) {
 			//Paket mit übergebener seqNum lokalisieren
@@ -322,12 +314,8 @@ public class FileCopyClient extends Thread {
 					//Alles ab sendBase was Acked ist, in den puffer ablegen
 					removePackets.add(packet);
 				} else {
-					//TODO	WAS PASSIERT, WENN WINDOW SIZE = 1 IST	TODO
-					//TODO	AUF WAS WIRD SENDBASE DANN GESETZT ???	TODO
-					System.out.println("***************ALTE SENDBASE: " + sendBase + "**********************");
 					//Packetseqnum auf sendbase setzten
 					sendBase = packet.getSeqNum();
-					System.out.println("***************NEUE SENDBASE: " + sendBase + "**********************");
 					
 					//Durchlauf abbrechen, sobald ein Packet kommt, dass nicht Acked ist
 					break;
@@ -412,9 +400,9 @@ public class FileCopyClient extends Thread {
 		 */
 //		FileCopyClient myClient = new FileCopyClient(argv[0], argv[1], argv[2],
 //				argv[3], argv[4]);
-		//FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData1.pdf", "1", "1000");
-		FileCopyClient myClient = new FileCopyClient("localhost", "Sem_BAI4.pdf", "Sem_BAI4AFJHOA.pdf", "10", "1000");
-		//FileCopyClient myClient = new FileCopyClient("localhost", "TestFile.txt", "TestFile1.txt", "1", "1000");
+		FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData1.pdf", "1", "1000");
+//		FileCopyClient myClient = new FileCopyClient("localhost", "Sem_BAI4.pdf", "Sem_BAI4AFJHOA.pdf", "1", "1000");
+//		FileCopyClient myClient = new FileCopyClient("localhost", "TestFile.txt", "TestFile1.txt", "1", "1000");
 		myClient.runFileCopyClient();
 	}
 

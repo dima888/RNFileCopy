@@ -19,7 +19,7 @@ public class SendPacket extends Thread {
 	private DatagramSocket clientSocket; //UDP-Socketklasse
 	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
-	private int delayTimeInMilliSeconds = 1;
+	private int delayTimeInMilliSeconds = 1; 
 	
     //*************************** KONSTRUKTOR *********************************
 	public SendPacket(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
@@ -36,24 +36,33 @@ public class SendPacket extends Thread {
 		try {
 			//1ms Verzögerungszeit simulieren
 			this.sleep(delayTimeInMilliSeconds);
-
-			//PAKET erstellen --> erste 8Byte für SeNum und restliche 1000 für DATA
-			String sendString = new String(packet.getSeqNumBytes()) + new String(packet.getData());
-			//String in ein Byte[] konvertieren UTF-8
-			byte[] data = sendString.getBytes();
+			
+			//Puffer für die Sequenznummer in Bytes
+			byte[] seqNumByte = packet.getSeqNumBytes();
+			
+			//Puffer für die zu verschickenden Daten als Bytes
+			byte[] sendDataByte = packet.getData();
+			
+			//Puffer für die kompletten Daten, Sequenznummer und die Daten in Bytes
+			byte[] entire = new byte[seqNumByte.length + sendDataByte.length];
+			
+			
+			//Die ersten 8 Stellen des gesammten Byte-Arrays ist für die Sequenznummer reserviert
+			for(int i = 0; i < 8; i++) {
+				entire[i] = seqNumByte[i];
+			}
+			
+			//Die Daten ab Stelle 8 in das Byte-Array stecken
+			for(int i = 8, j = 0; i < sendDataByte.length + 8; i++, j++) {
+				entire[i] = sendDataByte[j];
+			}
 			
 			//Paket erstellen
-			DatagramPacket sendPacket = new DatagramPacket(data, data.length,
+			DatagramPacket sendPacket = new DatagramPacket(entire, entire.length,
 					InetAddress.getByName(SERVER_NAME), SERVER_PORT);
 			
 			//Paket abschicken
 			clientSocket.send(sendPacket);
-			
-			System.out.println("PACKET MIT SEQNUM: " + packet.getSeqNum() + " UND PACKETGRÖßE: " + sendPacket.getLength()  
-			+ " DURCH THREAD: " + Thread.currentThread().getName() + " VERSENDET");
-			if(packet.getSeqNum() == 128 || packet.getSeqNum() == 63) {
-				System.out.println(Arrays.toString(packet.getData()));
-			}
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {

@@ -32,15 +32,11 @@ public class ReceiveAcknowledgement extends Thread {
     public void run() {
         try {
             while (serviceRequested) {
-            	System.out.println("WARTE AUF ACK");
-            	
             	//Auf Empfang eines Paketes warten
                 DatagramPacket receivedPacket = receivePacket();
                 
                 //Sequenznummer aus erhaltenem Paket filtern
                 long receivedSeqNum = getSeqNumFromDatagramPacket(receivedPacket);
-                
-                System.out.println("RECEIVED ACKNOWLEDGEMENT FOR PACKET SEQNUM: " + receivedSeqNum);
                 
                 //Window (sendePuffer) für FileCopyClient aktualisieren --> notify
                 fileCopyClient.acknowledgedPacket(receivedSeqNum);
@@ -68,8 +64,6 @@ public class ReceiveAcknowledgement extends Thread {
         
         /* Die im erhaltenen Paket enthaltene SequenzNummer extrahieren */
         long receivedSeqNum = fcReceivePacket.getSeqNum();
-
-        System.out.println("FileCopyServer acknowledged packet with seqNum: " + receivedSeqNum);
         
         return receivedSeqNum;
     }
