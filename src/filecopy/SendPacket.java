@@ -19,7 +19,7 @@ public class SendPacket extends Thread {
 	private DatagramSocket clientSocket; //UDP-Socketklasse
 	private FileCopyClient fileCopyClient;
 	private FCpacket packet;
-	private int delayTimeInMilliSeconds = 1; 
+	private int delayTimeInMilliSeconds = 1;
 	
     //*************************** KONSTRUKTOR *********************************
 	public SendPacket(DatagramSocket clientSocket, FileCopyClient fileCopyClient, final String SERVER_NAME, final int SERVER_PORT, FCpacket packet) {
@@ -45,7 +45,6 @@ public class SendPacket extends Thread {
 			
 			//Puffer für die kompletten Daten, Sequenznummer und die Daten in Bytes
 			byte[] entire = new byte[seqNumByte.length + sendDataByte.length];
-			
 			
 			//Die ersten 8 Stellen des gesammten Byte-Arrays ist für die Sequenznummer reserviert
 			for(int i = 0; i < 8; i++) {
