@@ -123,7 +123,7 @@ public class FileCopyClient extends Thread {
 			clientSocket = new DatagramSocket();
 			
 			//Thread zum lauschen auf Server antworten (Acks) starten
-			new ReceiveAcknowledgement(clientSocket, this).start();
+			new ReceiveAcknowledgement(clientSocket, this, path.toFile().length()).start();
 			
 			//Flag für das erste Paket
 			boolean firstPacketSend = true;
@@ -433,7 +433,7 @@ public class FileCopyClient extends Thread {
 		 */
 //		FileCopyClient myClient = new FileCopyClient(argv[0], argv[1], argv[2],
 //				argv[3], argv[4]);
-		FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData_Übertragen.pdf", "5", "1000");
+		FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData_Übertragen.pdf", "5", "10");
 //		FileCopyClient myClient = new FileCopyClient("localhost", "Sem_BAI4.pdf", "Sem_BAI4_Übertragen.pdf", "1", "1000");
 //		FileCopyClient myClient = new FileCopyClient("localhost", "TestFile.txt", "TestFile_Übertragen.txt", "1", "1000");
 		myClient.runFileCopyClient();

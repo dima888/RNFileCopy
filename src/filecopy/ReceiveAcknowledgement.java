@@ -9,24 +9,41 @@ import java.net.SocketException;
 /**
  * Diese Klasse ist dazu da, die Acknowledgements vom Server zu erhalten
  * TODO: Muss terminiert werden, sobald alle ACK´S erhalten wurden
+ * Habe eine schnelle Lösung dafür implementiert, jetzt wird terminiert
  */
 public class ReceiveAcknowledgement extends Thread {
     //**************************** ATTRIBUTE **********************************
 	private final int UDP_PACKET_SIZE = 8;    
     private FileCopyClient fileCopyClient;
     private DatagramSocket clientSocket;
+    private double realFileSize;
+    private int estimatedAcks;
     
     //*************************** KONSTRUKTOR *********************************
-    public ReceiveAcknowledgement(DatagramSocket clientSocket, FileCopyClient fileCopyClient) {
+    public ReceiveAcknowledgement(DatagramSocket clientSocket, FileCopyClient fileCopyClient, double fileSize) {
     	this.clientSocket = clientSocket;
     	this.fileCopyClient = fileCopyClient;
+    	this.realFileSize = fileSize;
     }
    
     //************************** PUBLIC METHODEN ******************************
     @Override
     public void run() {
         try {
-        	while (true) {
+        	//Anzahl an Acks berechnen die eintreffen sollen
+        	double fileSizeRounded = Math.round((realFileSize / 1000));
+        	int fileSizeInInt = (int) (realFileSize / 1000);
+        	
+        	if((int) fileSizeRounded == fileSizeInInt) {
+        		// +2, da Paket nummer 0 einbezogen werden muss und das letzte Paket mit nicht ganzen 1000 Bytes
+        		estimatedAcks = (int) fileSizeRounded + 2;
+        	} else {
+        		// +1, da Paket nummer 0 mit einbezogen werden muss
+        		estimatedAcks = (int) fileSizeRounded + 1;
+        	}
+        	
+        	//Laufe solange, bis für die Anzahl an Pakete, Acks eingetroffen sind
+        	while (estimatedAcks > 0) {
             	//Empfang eines Paketes warten
                 DatagramPacket receivedPacket = receivePacket();
                 
@@ -35,6 +52,9 @@ public class ReceiveAcknowledgement extends Thread {
                 
                 //Window (sendePuffer) für FileCopyClient aktualisieren --> notify
                 fileCopyClient.acknowledgedPacket(receivedSeqNum);
+                
+                //Zähler dekrementieren
+                estimatedAcks--;
             }
         } catch (SocketException ex) {
         	ex.printStackTrace();
