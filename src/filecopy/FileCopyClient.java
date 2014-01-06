@@ -197,13 +197,20 @@ public class FileCopyClient extends Thread {
 		for(FCpacket packet : sendBuffer) {
 			//Paket mit übergebener seqNum lokalisieren
 			if(packet.getSeqNum() == seqNum) {
+				//Timer für das Paket starten
+				startTimer(packet);
+				
 				//Paket erneut losschicken
 				new SendPacket(clientSocket, this, servername, SERVER_PORT, packet).start();
 				
 				//Timer für das Paket erneut starten
-				FC_Timer timer = new FC_Timer(timeoutValue, this, packet.getSeqNum());
-				packet.setTimer(timer);
-				timer.start();
+//				FC_Timer timer = new FC_Timer(timeoutValue, this, packet.getSeqNum());
+//				packet.setTimer(timer);
+//				timer.start();
+				
+				//Zeit festlegen --> Zeitstempel
+				//packet.setTimestamp(System.nanoTime());
+				//packet.setTimestamp(System.currentTimeMillis());
 			}
 		}
 		mutex.release();
@@ -214,17 +221,26 @@ public class FileCopyClient extends Thread {
 	 * Kapitel 3 Folie 55 RN 2013
 	 */
 	public void computeTimeoutValue(long sampleRTT) {
-		sampleRTTALL += sampleRTT;
-		countRTT++;
+//		sampleRTTALL += sampleRTT;
+//		countRTT++;
 
+		//Typischer Wert für x (laut folie)
+		double typicalValueOfX = 0.1;
+		
+		//erwartete RTT-Zeit
 		estimatedRTT = Double.valueOf(
-				(1 - 0.1) * estimatedRTT + 0.1 * sampleRTT).longValue();
+				(1 - typicalValueOfX) * estimatedRTT + typicalValueOfX * sampleRTT).longValue();
 
+		//Abweichungsgrad
 		deviation = Double.valueOf(
-				(1 - 0.1) * deviation + 0.1
+				(1 - typicalValueOfX) * deviation + typicalValueOfX
 						* Math.abs(sampleRTT - estimatedRTT)).longValue();
 
-		timeoutValue = estimatedRTT + 4 * deviation;
+		//TimeoutZeit
+		timeoutValue = estimatedRTT + (4 * deviation);
+		
+		System.out.println("SAMPLE RTT: " + sampleRTT);
+		System.out.println("ACTUAL TIMEOUTVALUE: " + timeoutValue);
 	}	
 	
 	/**
@@ -270,6 +286,7 @@ public class FileCopyClient extends Thread {
 		
 		//Zeit festlegen --> Zeitstempel
 		packet.setTimestamp(System.nanoTime());
+		//packet.setTimestamp(System.currentTimeMillis());
 		
 		//Timer für das Paket starten
 		startTimer(packet);
@@ -311,9 +328,11 @@ public class FileCopyClient extends Thread {
 				
 				//Timeoutwert mit gemessener RTT für Paket neu berechnen
 				//TODO: WAS GENAU MUSS HIER AUFGERUFEN WERDEN ???
-				//timeoutTask(timeoutValue);
-				//timeoutTask(packet.getTimestamp());
-				
+//				System.out.println("IN MILLI: " + (int) System.currentTimeMillis());
+//				System.out.println("IN NANNO: " + (int) System.nanoTime());
+				//computeTimeoutValue(System.nanoTime() - packet.getTimestamp());
+				computeTimeoutValue(1);
+
 				//Prüfen ob das Ack für die sendBase eingetroffen ist
 				if(packet.getSeqNum() == sendBase) {
 					isSendBase = true;
@@ -433,7 +452,7 @@ public class FileCopyClient extends Thread {
 		 */
 //		FileCopyClient myClient = new FileCopyClient(argv[0], argv[1], argv[2],
 //				argv[3], argv[4]);
-		FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData_Übertragen.pdf", "5", "10");
+		FileCopyClient myClient = new FileCopyClient("localhost", "FCData.pdf", "FCData_Übertragen.pdf", "1", "1000");
 //		FileCopyClient myClient = new FileCopyClient("localhost", "Sem_BAI4.pdf", "Sem_BAI4_Übertragen.pdf", "1", "1000");
 //		FileCopyClient myClient = new FileCopyClient("localhost", "TestFile.txt", "TestFile_Übertragen.txt", "1", "1000");
 		myClient.runFileCopyClient();
